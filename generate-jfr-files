@@ -1,0 +1,58 @@
+#!/bin/bash
+
+if [[ $# -ne 3 ]]; then
+    echo "Invalid number of arguments."
+    echo -n "This command expects the path to a Java interpreter, "
+    echo -n "followed by the name of the class to run, "
+    echo "followed by the path to a directory to store the generated JFR recordings."
+    echo "The CLASSPATH environment variable must be approrpiately set."
+    exit 1
+fi
+
+JAVA="$1"
+CLASS="$2"
+OUTPUT_DIR="$3"
+
+if [[ ! -x "$JAVA" || -d "$JAVA" ]]; then
+    echo "Invalid path to Java interpreter."
+    exit 1
+fi
+
+if [[ (-e "$OUTPUT_DIR" && (! -d "$OUTPUT_DIR" || ! -w "$OUTPUT_DIR" )) ]]; then
+    echo "Invalid output directory."
+    exit 1
+elif [[ ! -e "$OUTPUT_DIR"  ]] && ! mkdir -p "$OUTPUT_DIR"; then
+    echo "Could not create output directory."
+    exit 1
+fi
+
+run_param() {
+    PARAM="$1"
+    OUTPUT_SUBDIR="$OUTPUT_DIR/${PARAM%=*}"
+    FILENAME="$OUTPUT_SUBDIR/$PARAM.jfr"
+    OPTION="-XX:StartFlightRecording=filename=$FILENAME,$PARAM"
+    mkdir -p "$OUTPUT_SUBDIR"
+    if ! "$JAVA" "$OPTION" "$CLASS"; then
+        echo "Error running parameter \"$PARAM\"."
+        exit 2
+    fi
+}
+
+mkdir -p "$OUTPUT_DIR/default"
+if ! "$JAVA" -XX:StartFlightRecording=filename="$OUTPUT_DIR/default/default.jfr" "$CLASS"; then
+    echo "Error running default."
+    exit 2
+fi
+
+run_param "delay=1s"
+run_param "disk=true"
+run_param "disk=false"
+run_param "dumponexit=true"
+run_param "duration=1s"
+run_param "name=identifier"
+run_param "maxage=0s"
+run_param "maxage=1s"
+run_param "maxsize=0m"
+run_param "maxsize=1m"
+run_param "path-to-gc-roots=true"
+run_param "path-to-gc-roots=false"
